@@ -7,7 +7,7 @@ on:
       - master
 
 jobs:
-  build-arm64:
+  build:
     name: Build ARM64 (Apple Silicon)
     runs-on: macos-latest
     steps:
@@ -19,41 +19,19 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Build ARM64
+      - name: Build
         run: make build-arm64
 
-      - name: Upload ARM64 artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mtool-darwin-arm64
           path: dist/darwin-arm64/mtool
           retention-days: 7
 
-  build-amd64:
-    name: Build x86_64 (Intel)
-    runs-on: macos-14
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-
-      - name: Build x86_64
-        run: make build-amd64
-
-      - name: Upload x86_64 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mtool-darwin-amd64
-          path: dist/darwin-amd64/mtool
-          retention-days: 7
-
   package-and-release:
     name: Package and Release
-    needs: [build-arm64, build-amd64]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -62,7 +40,6 @@ jobs:
       - name: Create dist directories
         run: |
           mkdir -p dist/darwin-arm64
-          mkdir -p dist/darwin-amd64
 
       - name: Download ARM64 artifact
         uses: actions/download-artifact@v4
@@ -70,16 +47,9 @@ jobs:
           name: mtool-darwin-arm64
           path: dist/darwin-arm64/
 
-      - name: Download x86_64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: mtool-darwin-amd64
-          path: dist/darwin-amd64/
-
-      - name: Make binaries executable
+      - name: Make binary executable
         run: |
           chmod +x dist/darwin-arm64/mtool
-          chmod +x dist/darwin-amd64/mtool
 
       - name: Package
         run: make package
@@ -133,7 +103,6 @@ jobs:
 
             **Files:**
             - `mtool-v${{ steps.version.outputs.version }}-darwin-arm64.tar.gz` - Apple Silicon M1-M4
-            - `mtool-v${{ steps.version.outputs.version }}-darwin-amd64.tar.gz` - Intel Mac
 
             These are automatic builds from the latest commit. For stable releases, please use versioned releases.
           draft: false
