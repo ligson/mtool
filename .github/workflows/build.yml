@@ -96,12 +96,35 @@ jobs:
       - name: Package
         run: make package
 
+      - name: Get changelog
+        id: changelog
+        run: |
+          TAG=$(echo ${GITHUB_REF#refs/tags/})
+          PREV_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            # No previous tag, show last 20 commits
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            git log --oneline -20
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            # Show commits between tags
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            git log --oneline ${PREV_TAG}..${TAG}
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*.tar.gz
           draft: false
           prerelease: false
+          body: |
+            **Changes:**
+            ```
+            ${{ steps.changelog.outputs.changelog }}
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
