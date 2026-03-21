@@ -17,6 +17,12 @@
 - 工作流简化为单个构建任务
 - 改进错误消息和日志
 
+## [0.6.0] - 2026-03-21
+
+### Fixed
+- 简化发版时每次需要改多个文件
+
+
 ## [0.5.0] - 2026-03-21
 
 ### Changed
@@ -64,3 +70,5 @@
 [0.3.0]: https://github.com/ligson/mtool/releases/tag/v0.3.0
 [0.4.0]: https://github.com/ligson/mtool/releases/tag/v0.4.0
 [0.5.0]: https://github.com/ligson/mtool/releases/tag/v0.5.0
+[0.6.0]: https://github.com/ligson/mtool/releases/tag/v0.6.0
+
