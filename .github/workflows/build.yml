@@ -34,20 +34,8 @@ jobs:
       - name: Build amd64
         run: make build-amd64
 
-      # ────────────────────────────────────────
-      # 关键调试步骤：强制看文件到底生成了没有
-      # ────────────────────────────────────────
-      - name: Debug - List dist/ contents (must see files here!)
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Contents of dist/:"
-          ls -la dist/ 2>&1 || echo "dist/ does NOT exist!"
-          echo ""
-          echo "All .tar.gz files anywhere:"
-          find . -type f -name "*.tar.gz" 2>/dev/null || echo "No .tar.gz files found anywhere"
-          echo ""
-          echo "Full tree of dist/ if exists:"
-          tree dist/ 2>/dev/null || echo "tree command failed or dist/ missing"
+      - name: Run package
+        run: make package
 
       - name: Upload Darwin artifacts
         uses: actions/upload-artifact@v4
@@ -60,48 +48,12 @@ jobs:
           compression-level: 6
           retention-days: 7
 
-  package:
-    name: Package
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download ALL artifacts (debug mode)
-        uses: actions/download-artifact@v4
-        with:
-          path: downloaded-artifacts/
-
-      - name: Show what was actually downloaded
-        run: |
-          tree downloaded-artifacts/ || ls -R downloaded-artifacts/
-          find downloaded-artifacts/ -type f || true
-
-      - name: Move files to expected dist/ location
-        run: |
-          mkdir -p dist/
-          mv downloaded-artifacts/**/dist/*.tar.gz dist/ 2>/dev/null || true
-          ls -la dist/
-
-      - name: Run package
-        run: make package
-
-      - name: Show packaged files (debug)
-        run: ls -lh dist/ || true
-
-      - name: Upload packaged artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packaged-files
-          path: dist/*.tar.gz
-          retention-days: 7
 
   release:
     name: Create GitHub Release
     # 只在 push tag 时运行 release 步骤
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [package]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
