@@ -1,7 +1,7 @@
 .PHONY: all build-arm64 build-amd64 package clean help info
 
 # 版本号
-VERSION := 0.2.0
+VERSION := 0.3.0
 BINARY_NAME := mtool
 DIST_DIR := dist
 

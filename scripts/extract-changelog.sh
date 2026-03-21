@@ -30,14 +30,14 @@ output=""
 
 while IFS= read -r line; do
     # 检查是否是目标版本的开始
-    if [[ $line =~ ^##\ \[$VERSION_NUM\] ]]; then
+    if echo "$line" | grep -q "^## \[$VERSION_NUM\]"; then
         in_section=1
         continue
     fi
 
     # 如果已经在目标版本中，检查是否到达下一个版本
     if [ $in_section -eq 1 ]; then
-        if [[ $line =~ ^##\ ]]; then
+        if echo "$line" | grep -q "^## "; then
             # 到达下一个版本，停止提取
             break
         fi
