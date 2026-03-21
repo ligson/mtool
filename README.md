@@ -1,6 +1,17 @@
 # mtool - Mac 传感器监控工具
 
+[![Build Status](https://github.com/ligson/mtool/actions/workflows/build.yml/badge.svg)](https://github.com/ligson/mtool/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/ligson/mtool?color=blue)](https://github.com/ligson/mtool/releases)
+[![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://golang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 一个轻量级 CLI 工具，用于监控 Apple Silicon（M1-M4）的传感器数据：CPU/GPU 温度、风扇转速和热学指标。
+
+## 快速下载
+
+### 最新构建
+- **Continuous Build**：[GitHub Release - continuous](https://github.com/ligson/mtool/releases/tag/continuous) （每次 main 分支更新）
+- **稳定版本**：[GitHub Releases](https://github.com/ligson/mtool/releases) （版本标签）
 
 ## 功能特性
 
@@ -294,6 +305,21 @@ go test ./...
 1. 参见 `CLAUDE.md` 获取开发指南
 2. 在你的 M 系列 Mac 上测试
 3. 提交发现/PR
+
+## GitHub Actions 自动化
+
+mtool 使用 GitHub Actions 自动化编译、打包和发布：
+
+### 工作流
+- **build.yml** - 在每次 push 和 tag 发布时自动编译和发布
+- **continuous-release.yml** - 在每次 main 分支更新时生成最新构建
+
+### 自动发布
+- 每次 push 到 main 分支时，自动更新 [continuous Release](https://github.com/ligson/mtool/releases/tag/continuous)
+- 创建版本标签（如 `v0.2.0`）时，自动发布正式版本到 Releases
+- 所有架构（ARM64 和 x86_64）自动编译和打包
+
+详见 [.github/workflows/README.md](.github/workflows/README.md)
 
 ## 许可证
 

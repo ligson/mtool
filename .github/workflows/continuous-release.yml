@@ -1,0 +1,143 @@
+name: Continuous Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build-arm64:
+    name: Build ARM64 (Apple Silicon)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build ARM64
+        run: make build-arm64
+
+      - name: Upload ARM64 artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mtool-darwin-arm64
+          path: dist/darwin-arm64/mtool
+          retention-days: 7
+
+  build-amd64:
+    name: Build x86_64 (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build x86_64
+        run: make build-amd64
+
+      - name: Upload x86_64 artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mtool-darwin-amd64
+          path: dist/darwin-amd64/mtool
+          retention-days: 7
+
+  package-and-release:
+    name: Package and Release
+    needs: [build-arm64, build-amd64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create dist directories
+        run: |
+          mkdir -p dist/darwin-arm64
+          mkdir -p dist/darwin-amd64
+
+      - name: Download ARM64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: mtool-darwin-arm64
+          path: dist/darwin-arm64/
+
+      - name: Download x86_64 artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: mtool-darwin-amd64
+          path: dist/darwin-amd64/
+
+      - name: Make binaries executable
+        run: |
+          chmod +x dist/darwin-arm64/mtool
+          chmod +x dist/darwin-amd64/mtool
+
+      - name: Package
+        run: make package
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep "VERSION := " Makefile | awk '{print $3}')
+          COMMIT=$(echo ${GITHUB_SHA:0:7})
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "tag=continuous" >> $GITHUB_OUTPUT
+
+      - name: Delete old release
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            for (const release of releases.data) {
+              if (release.tag_name === 'continuous') {
+                await github.rest.repos.deleteRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: release.id,
+                });
+
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/continuous`,
+                });
+              }
+            }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: continuous
+          name: "Continuous Build"
+          body: |
+            🚀 Latest build from main branch
+
+            **Build Info:**
+            - Version: ${{ steps.version.outputs.version }}
+            - Commit: ${{ steps.version.outputs.commit }}
+            - Date: ${{ github.event.head_commit.timestamp }}
+
+            **Files:**
+            - `mtool-v${{ steps.version.outputs.version }}-darwin-arm64.tar.gz` - Apple Silicon M1-M4
+            - `mtool-v${{ steps.version.outputs.version }}-darwin-amd64.tar.gz` - Intel Mac
+
+            These are automatic builds from the latest commit. For stable releases, please use versioned releases.
+          draft: false
+          prerelease: true
+          files: dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
