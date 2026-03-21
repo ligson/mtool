@@ -48,20 +48,29 @@ jobs:
         id: changelog
         run: |
           VERSION=$(grep "VERSION := " Makefile | awk '{print $3}')
-          echo "Version: $VERSION"
+          echo "Extracting changelog for version: $VERSION"
 
           # 尝试从 CHANGELOG.md 提取内容
-          if bash scripts/extract-changelog.sh "$VERSION" > changelog_content.txt 2>&1; then
+          if bash scripts/extract-changelog.sh "$VERSION" > /tmp/changelog_content.txt 2>&1; then
             echo "✓ Successfully extracted changelog"
-            echo "body<<EOF" >> "$GITHUB_OUTPUT"
-            cat changelog_content.txt
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<CHANGELOG"
+              cat /tmp/changelog_content.txt
+              echo "CHANGELOG"
+            } >> "$GITHUB_OUTPUT"
           else
             echo "⚠ Failed to extract changelog, using git log"
-            echo "body<<EOF" >> "$GITHUB_OUTPUT"
-            git log -1 --format="**Latest commit:** %s%n%n%B"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<CHANGELOG"
+              git log -1 --format="**Latest commit:** %s%n%n%B"
+              echo "CHANGELOG"
+            } >> "$GITHUB_OUTPUT"
           fi
+
+          # 调试：显示输出内容
+          echo "=== GITHUB_OUTPUT content ==="
+          cat "$GITHUB_OUTPUT"
+          echo "=== END ==="
 
       - name: Get version
         id: version
@@ -71,7 +80,8 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tar.gz
           tag_name: v${{ steps.version.outputs.version }}
@@ -79,5 +89,4 @@ jobs:
           body: ${{ steps.changelog.outputs.body }}
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
