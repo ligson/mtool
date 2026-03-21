@@ -17,7 +17,7 @@ on:
 
 jobs:
   build:
-    name: Build ARM64 (Apple Silicon)
+    name: Build Darwin binaries
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -28,18 +28,19 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Build-arm64
+      - name: Build arm64
         run: make build-arm64
 
-      - name: Build-amd64
+      - name: Build amd64
         run: make build-amd64
 
-      - name: Upload artifact
+      - name: Upload Darwin artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mtool-darwin-arm64
+          name: darwin-binaries
           path: dist/*.tar.gz
           retention-days: 7
+          if-no-files-found: warn   # 或 error，看你偏好
 
   package:
     name: Package
@@ -49,59 +50,67 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Package
+      - name: Download built binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: darwin-binaries
+          path: dist/
+
+      - name: Show downloaded files (debug)
+        run: ls -lh dist/ || true
+
+      - name: Run package
         run: make package
 
-      - name: Upload artifacts
+      - name: Show packaged files (debug)
+        run: ls -lh dist/ || true
+
+      - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mtool-packages
+          name: packaged-files
           path: dist/*.tar.gz
           retention-days: 7
 
   release:
-    name: Create Release
+    name: Create GitHub Release
+    # 只在 push tag 时运行 release 步骤
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [package]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Get changelog
+        with:
+          fetch-depth: 0   # 为了 git describe / git log 能拿到历史 tag
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-files
+          path: dist/
+
+      - name: Generate changelog
         id: changelog
         run: |
-          TAG=$(echo ${GITHUB_REF#refs/tags/})
-          PREV_TAG=$(git describe --tags --abbrev=0 ${TAG}^ 2>/dev/null || echo "")
-
+          TAG="${GITHUB_REF#refs/tags/}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
+          
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
           if [ -z "$PREV_TAG" ]; then
-            # No previous tag, show last 20 commits
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            git log --oneline -20
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "Initial release - no previous tag found"
+            git log --oneline -n 20
           else
-            # Show commits between tags
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            git log --oneline ${PREV_TAG}..${TAG}
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "Changes since ${PREV_TAG}:"
+            git log --oneline "${PREV_TAG}..${TAG}"
           fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tar.gz
-          draft: false
-          prerelease: false
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
             **Changes:**
-            ```
-            ${{ steps.changelog.outputs.changelog }}
-            ```
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: mtool-release
-          path: dist/*.tar.gz
