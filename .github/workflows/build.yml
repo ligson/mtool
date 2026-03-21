@@ -23,7 +23,7 @@ jobs:
       - run: make build-amd64
       - run: make package
 
-      - name: Debug: Check dist files
+      - name: Debug Check dist files
         if: always()
         run: |
           ls -la dist/ || echo "No dist/"
