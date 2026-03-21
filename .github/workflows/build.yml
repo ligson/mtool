@@ -34,13 +34,31 @@ jobs:
       - name: Build amd64
         run: make build-amd64
 
+      # ────────────────────────────────────────
+      # 关键调试步骤：强制看文件到底生成了没有
+      # ────────────────────────────────────────
+      - name: Debug - List dist/ contents (must see files here!)
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents of dist/:"
+          ls -la dist/ 2>&1 || echo "dist/ does NOT exist!"
+          echo ""
+          echo "All .tar.gz files anywhere:"
+          find . -type f -name "*.tar.gz" 2>/dev/null || echo "No .tar.gz files found anywhere"
+          echo ""
+          echo "Full tree of dist/ if exists:"
+          tree dist/ 2>/dev/null || echo "tree command failed or dist/ missing"
+
       - name: Upload Darwin artifacts
         uses: actions/upload-artifact@v4
+        # 即使前面失败也尝试上传（方便 debug）
+        if: always()                                
         with:
           name: darwin-binaries
           path: dist/*.tar.gz
+          if-no-files-found: error                    # 改成 error → 如果没文件，build job 会失败（容易发现）
+          compression-level: 6
           retention-days: 7
-          if-no-files-found: warn   # 或 error，看你偏好
 
   package:
     name: Package
