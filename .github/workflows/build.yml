@@ -23,24 +23,17 @@ jobs:
       - run: make build-amd64
       - run: make package
 
-      - name: Debug Check dist files
-        if: always()
-        run: |
-          ls -la dist/ || echo "No dist/"
-          find . -name "*.tar.gz" || echo "No .tar.gz found"
-
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: packaged-files
           path: dist/*.tar.gz
-          if-no-files-found: error
           retention-days: 7
 
   release:
     needs: [build]
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,17 +44,37 @@ jobs:
           name: packaged-files
           path: dist/
 
-      - name: Generate changelog
+      - name: Extract changelog
         id: changelog
         run: |
-          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-          echo "Latest commit: $(git log -1 --oneline)"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          bash scripts/extract-changelog.sh > changelog_content.txt 2>/dev/null || true
+
+          if [ -s changelog_content.txt ]; then
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            cat changelog_content.txt
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            # 如果找不到 changelog，显示最近的提交
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            git log -1 --format="**Latest commit:** %s%n%n%B"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(grep "VERSION := " Makefile | awk '{print $3}')
+          COMMIT=$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tar.gz
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            **Latest commit:**
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.body }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
