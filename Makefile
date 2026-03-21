@@ -60,17 +60,6 @@ $(DIST_DIR):
 # 构建 ARM64（Apple Silicon）
 build-arm64: $(DIST_DIR)
 	@echo "📦 正在编译 ARM64（Apple Silicon M1-M4）..."
-	@if [ "$(CURRENT_ARCH)" != "arm64" ]; then \
-		echo ""; \
-		echo "❌ 错误：无法交叉编译含 CGo 代码"; \
-		echo ""; \
-		echo "当前架构：$(CURRENT_ARCH)"; \
-		echo "目标架构：arm64"; \
-		echo ""; \
-		echo "💡 解决方案：在 ARM64 Mac 上运行 'make build-arm64'"; \
-		echo ""; \
-		exit 1; \
-	fi
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 $(GO) build $(GOFLAGS) -o $(DIST_DIR)/darwin-arm64/$(BINARY_NAME) .
 	@chmod +x $(DIST_DIR)/darwin-arm64/$(BINARY_NAME)
 	@echo "✓ ARM64 编译完成: $(DIST_DIR)/darwin-arm64/$(BINARY_NAME)"
@@ -79,17 +68,6 @@ build-arm64: $(DIST_DIR)
 # 构建 x86_64（Intel）
 build-amd64: $(DIST_DIR)
 	@echo "📦 正在编译 x86_64（Intel Mac）..."
-	@if [ "$(CURRENT_ARCH)" != "amd64" ]; then \
-		echo ""; \
-		echo "❌ 错误：无法交叉编译含 CGo 代码"; \
-		echo ""; \
-		echo "当前架构：$(CURRENT_ARCH)"; \
-		echo "目标架构：amd64"; \
-		echo ""; \
-		echo "💡 解决方案：在 Intel Mac 上运行 'make build-amd64'"; \
-		echo ""; \
-		exit 1; \
-	fi
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 $(GO) build $(GOFLAGS) -o $(DIST_DIR)/darwin-amd64/$(BINARY_NAME) .
 	@chmod +x $(DIST_DIR)/darwin-amd64/$(BINARY_NAME)
 	@echo "✓ x86_64 编译完成: $(DIST_DIR)/darwin-amd64/$(BINARY_NAME)"
