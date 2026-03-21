@@ -47,12 +47,11 @@ jobs:
           if-no-files-found: error                    # 改成 error → 如果没文件，build job 会失败（容易发现）
           compression-level: 6
           retention-days: 7
+         
 
 
   release:
     name: Create GitHub Release
-    # 只在 push tag 时运行 release 步骤
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [build]
     runs-on: ubuntu-latest
     steps:
@@ -74,13 +73,7 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || echo "")
           
           echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -z "$PREV_TAG" ]; then
-            echo "Initial release - no previous tag found"
-            git log --oneline -n 20
-          else
-            echo "Changes since ${PREV_TAG}:"
-            git log --oneline "${PREV_TAG}..${TAG}"
-          fi
+          git log -1 --oneline
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
