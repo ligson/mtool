@@ -47,14 +47,17 @@ jobs:
       - name: Extract changelog
         id: changelog
         run: |
-          bash scripts/extract-changelog.sh > changelog_content.txt 2>/dev/null || true
+          VERSION=$(grep "VERSION := " Makefile | awk '{print $3}')
+          echo "Version: $VERSION"
 
-          if [ -s changelog_content.txt ]; then
+          # 尝试从 CHANGELOG.md 提取内容
+          if bash scripts/extract-changelog.sh "$VERSION" > changelog_content.txt 2>&1; then
+            echo "✓ Successfully extracted changelog"
             echo "body<<EOF" >> "$GITHUB_OUTPUT"
             cat changelog_content.txt
             echo "EOF" >> "$GITHUB_OUTPUT"
           else
-            # 如果找不到 changelog，显示最近的提交
+            echo "⚠ Failed to extract changelog, using git log"
             echo "body<<EOF" >> "$GITHUB_OUTPUT"
             git log -1 --format="**Latest commit:** %s%n%n%B"
             echo "EOF" >> "$GITHUB_OUTPUT"
