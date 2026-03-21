@@ -1,0 +1,38 @@
+# 编译产物
+/dist/
+*.o
+*.a
+*.so
+.dylib
+*.dll
+*.exe
+*.test
+*.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Go 相关
+/bin/
+/vendor/
+go.sum
+*.prof
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# gpt
+.claude/
