@@ -50,14 +50,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download built binaries
+      - name: Download ALL artifacts (debug mode)
         uses: actions/download-artifact@v4
         with:
-          name: darwin-binaries
-          path: dist/
+          path: downloaded-artifacts/
 
-      - name: Show downloaded files (debug)
-        run: ls -lh dist/ || true
+      - name: Show what was actually downloaded
+        run: |
+          tree downloaded-artifacts/ || ls -R downloaded-artifacts/
+          find downloaded-artifacts/ -type f || true
+
+      - name: Move files to expected dist/ location
+        run: |
+          mkdir -p dist/
+          mv downloaded-artifacts/**/dist/*.tar.gz dist/ 2>/dev/null || true
+          ls -la dist/
 
       - name: Run package
         run: make package
