@@ -17,6 +17,12 @@
 - 工作流简化为单个构建任务
 - 改进错误消息和日志
 
+## [0.7.0] - 2026-03-23
+
+### Changed
+- 命令行解析库更换为urfave
+
+
 ## [0.6.0] - 2026-03-21
 
 ### Fixed
@@ -71,4 +77,5 @@
 [0.4.0]: https://github.com/ligson/mtool/releases/tag/v0.4.0
 [0.5.0]: https://github.com/ligson/mtool/releases/tag/v0.5.0
 [0.6.0]: https://github.com/ligson/mtool/releases/tag/v0.6.0
+[0.7.0]: https://github.com/ligson/mtool/releases/tag/v0.7.0
 

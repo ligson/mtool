@@ -2,15 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"text/tabwriter"
 	"unsafe"
+
+	"github.com/urfave/cli/v2"
 )
 
-const version = "0.6.0"
+const version = "0.7.0"
 
 type OutputFormat string
 
@@ -22,119 +23,136 @@ const (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(0)
+	app := &cli.App{
+		Name:    "mtool",
+		Usage:   "Mac sensor monitor (M-series compatible)",
+		Version: version,
+		Commands: []*cli.Command{
+			{
+				Name:   "fan",
+				Usage:  "Show fan speeds",
+				Flags:  commonFlags(),
+				Action: fanAction,
+			},
+			{
+				Name:   "temp",
+				Usage:  "Show temperature sensors",
+				Flags:  commonFlags(),
+				Action: tempAction,
+			},
+			{
+				Name:   "all",
+				Usage:  "Show all sensor data",
+				Flags:  commonFlags(),
+				Action: allAction,
+			},
+			{
+				Name:   "power",
+				Usage:  "Show power/thermal data via powermetrics",
+				Action: powerAction,
+			},
+			{
+				Name:   "diag",
+				Usage:  "Show SMC key diagnostics",
+				Action: diagAction,
+			},
+			{
+				Name:  "version",
+				Usage: "Show version",
+				Action: func(c *cli.Context) error {
+					fmt.Println("mtool version", version)
+					return nil
+				},
+			},
+		},
+		Action: func(c *cli.Context) error {
+			if c.Args().Len() == 0 {
+				printUsage()
+				return nil
+			}
+			return cli.ShowAppHelp(c)
+		},
 	}
 
-	switch os.Args[1] {
-	case "fan":
-		cmdFan(os.Args[2:])
-	case "temp":
-		cmdTemp(os.Args[2:])
-	case "all":
-		cmdAll(os.Args[2:])
-	case "power":
-		cmdPower()
-	case "diag":
-		cmdDiag()
-	case "version", "-v", "--version":
-		fmt.Println("mtool version", version)
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
-		printUsage()
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func printUsage() {
-	fmt.Println(`mtool - Mac sensor monitor (M-series compatible)
-
-Usage:
-  mtool <command> [options]
-
-Commands:
-  fan     Show fan speeds
-  temp    Show temperature sensors
-  all     Show all sensor data
-  power   Show power/thermal data via powermetrics
-  diag    Show SMC key diagnostics
-  version Show version
-
-Options (for temp, fan, all):
-  -f, --format=<fmt>   Output format: table (default), json, plain, csv
-  -g, --group          Group by sensor type and show averages
-  -k, --key=<key>      Show only specific sensor key (e.g. Tp01)
-  -t, --type=<type>    Show only specific sensor type: cpu, gpu, soc, battery, ambient, other
-
-Examples:
-  mtool temp                                # Table format, all sensors
-  mtool temp -f json                        # JSON format
-  mtool temp -f plain                       # Plain text (values only)
-  mtool temp -g                             # Grouped averages (table)
-  mtool temp -t cpu                         # CPU sensors only, grouped
-  mtool temp -t cpu -f plain                # CPU average temperature, plain number
-  mtool temp --type=gpu                     # GPU sensors (using = format)
-  mtool temp -k Tp01                        # Single key
-  mtool fan -f json
-  mtool all -f csv
-  mtool all -t soc -f json                  # SoC sensors in JSON`)
+func commonFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:    "format",
+			Aliases: []string{"f"},
+			Value:   "table",
+			Usage:   "Output format: table, json, plain, csv",
+		},
+		&cli.BoolFlag{
+			Name:    "group",
+			Aliases: []string{"g"},
+			Usage:   "Group by sensor type and show averages",
+		},
+		&cli.StringFlag{
+			Name:    "key",
+			Aliases: []string{"k"},
+			Usage:   "Show only specific sensor key (e.g. Tp01)",
+		},
+		&cli.StringFlag{
+			Name:    "type",
+			Aliases: []string{"t"},
+			Usage:   "Show only specific sensor type: cpu, gpu, soc, battery, ambient, other",
+		},
+	}
 }
 
-func openSMC() *SMC {
-	smc := &SMC{}
-	if err := smc.Open(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: SMC unavailable: %v\n", err)
-		return nil
-	}
-	return smc
+func fanAction(c *cli.Context) error {
+	cmdFan(parseCommonFlags(c))
+	return nil
 }
 
-// parseCommonFlags parses format, group, key, and type flags
-func parseCommonFlags(args []string) (format OutputFormat, group bool, key string, sensorType string) {
-	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.String("format", "table", "")
-	fs.String("f", "table", "")
-	fs.Bool("group", false, "")
-	fs.Bool("g", false, "")
-	fs.String("key", "", "")
-	fs.String("k", "", "")
-	fs.String("type", "", "")
-	fs.String("t", "", "")
-	fs.Usage = func() {}
-	fs.Parse(args)
+func tempAction(c *cli.Context) error {
+	cmdTemp(parseCommonFlags(c))
+	return nil
+}
 
-	fmtStr := fs.Lookup("format").Value.String()
-	if fmtStr == "table" {
-		fmtStr = fs.Lookup("f").Value.String()
-	}
-	format = OutputFormat(fmtStr)
+func allAction(c *cli.Context) error {
+	cmdAll(parseCommonFlags(c))
+	return nil
+}
 
-	groupVal := fs.Lookup("group").Value.String() == "true"
-	if !groupVal {
-		groupVal = fs.Lookup("g").Value.String() == "true"
-	}
-	group = groupVal
+func powerAction(c *cli.Context) error {
+	cmdPower()
+	return nil
+}
 
-	key = fs.Lookup("key").Value.String()
-	if key == "" {
-		key = fs.Lookup("k").Value.String()
-	}
+func diagAction(c *cli.Context) error {
+	cmdDiag()
+	return nil
+}
 
-	sensorType = fs.Lookup("type").Value.String()
-	if sensorType == "" {
-		sensorType = fs.Lookup("t").Value.String()
-	}
-	// Normalize type to uppercase (CPU, GPU, etc.)
+type commonOpts struct {
+	format     OutputFormat
+	group      bool
+	key        string
+	sensorType string
+}
+
+func parseCommonFlags(c *cli.Context) commonOpts {
+	sensorType := c.String("type")
 	if sensorType != "" {
 		sensorType = strings.ToUpper(sensorType)
 	}
-
-	return
+	return commonOpts{
+		format:     OutputFormat(c.String("format")),
+		group:      c.Bool("group"),
+		key:        c.String("key"),
+		sensorType: sensorType,
+	}
 }
 
-func cmdFan(args []string) {
-	format, _, _, _ := parseCommonFlags(args)
+func cmdFan(opts commonOpts) {
+	format := opts.format
 
 	smc := openSMC()
 	if smc == nil {
@@ -189,8 +207,11 @@ func cmdFan(args []string) {
 	}
 }
 
-func cmdTemp(args []string) {
-	format, group, key, sensorType := parseCommonFlags(args)
+func cmdTemp(opts commonOpts) {
+	format := opts.format
+	group := opts.group
+	key := opts.key
+	sensorType := opts.sensorType
 
 	smc := openSMC()
 	if smc == nil {
@@ -263,131 +284,10 @@ func cmdTemp(args []string) {
 	}
 }
 
-func outputSensors(sensors []TempSensor, format OutputFormat) {
-	var data []map[string]interface{}
-	for _, s := range sensors {
-		data = append(data, map[string]interface{}{
-			"name":    s.Name,
-			"key":     s.Key,
-			"celsius": s.Celsius,
-		})
-	}
-
-	switch format {
-	case FormatJSON:
-		b, _ := json.MarshalIndent(data, "", "  ")
-		fmt.Println(string(b))
-	case FormatPlain:
-		for _, d := range data {
-			fmt.Printf("%.1f\n", d["celsius"])
-		}
-	case FormatCSV:
-		fmt.Println("name,key,celsius")
-		for _, d := range data {
-			fmt.Printf("%s,%s,%.1f\n", d["name"], d["key"], d["celsius"])
-		}
-	default:
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "SENSOR\tKEY\tTEMPERATURE")
-		fmt.Fprintln(w, "------\t---\t-----------")
-		for _, s := range sensors {
-			bar := tempBar(s.Celsius)
-			fmt.Fprintf(w, "%s\t%s\t%.1f °C  %s\n", s.Name, s.Key, s.Celsius, bar)
-		}
-		w.Flush()
-	}
-}
-
-func outputGrouped(sensors []TempSensor, format OutputFormat, filterType string) {
-	groups := groupSensors(sensors)
-
-	// If a specific type is filtered, show only that group
-	if filterType != "" {
-		for _, g := range groups {
-			if g["group"].(string) == filterType {
-				groups = []map[string]interface{}{g}
-				break
-			}
-		}
-	}
-
-	switch format {
-	case FormatJSON:
-		b, _ := json.MarshalIndent(groups, "", "  ")
-		fmt.Println(string(b))
-	case FormatPlain:
-		for _, g := range groups {
-			fmt.Printf("%.1f\n", g["avg"])
-		}
-	case FormatCSV:
-		fmt.Println("group,avg,count")
-		for _, g := range groups {
-			fmt.Printf("%s,%.1f,%d\n", g["group"], g["avg"], g["count"])
-		}
-	default:
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "GROUP\tAVG (°C)\tCOUNT\tDETAILS")
-		fmt.Fprintln(w, "-----\t--------\t-----\t-------")
-		for _, g := range groups {
-			details := g["details"].(string)
-			fmt.Fprintf(w, "%s\t%.1f\t%d\t%s\n", g["group"], g["avg"], g["count"], details)
-		}
-		w.Flush()
-	}
-}
-
-// groupSensors groups sensors by type and calculates averages
-func groupSensors(sensors []TempSensor) []map[string]interface{} {
-	groups := make(map[string][]TempSensor)
-
-	for _, s := range sensors {
-		var category string
-		if strings.HasPrefix(s.Key, "Tp") {
-			category = "CPU"
-		} else if strings.HasPrefix(s.Key, "Tg") {
-			category = "GPU"
-		} else if strings.HasPrefix(s.Key, "Te") {
-			category = "SOC"
-		} else if strings.HasPrefix(s.Key, "TB") {
-			category = "BATTERY"
-		} else if strings.HasPrefix(s.Key, "Ta") {
-			category = "AMBIENT"
-		} else if strings.HasPrefix(s.Key, "T") {
-			category = "OTHER"
-		} else {
-			category = "UNKNOWN"
-		}
-		groups[category] = append(groups[category], s)
-	}
-
-	var result []map[string]interface{}
-	order := []string{"CPU", "GPU", "SOC", "BATTERY", "AMBIENT", "OTHER", "UNKNOWN"}
-
-	for _, cat := range order {
-		if sensorList, ok := groups[cat]; ok && len(sensorList) > 0 {
-			var sum float64
-			var details strings.Builder
-			for i, s := range sensorList {
-				sum += s.Celsius
-				if i > 0 {
-					details.WriteString(", ")
-				}
-				details.WriteString(fmt.Sprintf("%s %.1f°C", s.Key, s.Celsius))
-			}
-			avg := sum / float64(len(sensorList))
-			result = append(result, map[string]interface{}{
-				"group":   cat,
-				"avg":     avg,
-				"count":   len(sensorList),
-				"details": details.String(),
-			})
-		}
-	}
-	return result
-}
-
-func cmdAll(args []string) {
-	format, group, _, sensorType := parseCommonFlags(args)
+func cmdAll(opts commonOpts) {
+	format := opts.format
+	group := opts.group
+	sensorType := opts.sensorType
 
 	// For JSON/CSV formats, combine everything
 	if format == FormatJSON || format == FormatCSV || format == FormatPlain {
@@ -536,6 +436,172 @@ func cmdDiag() {
 		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", k, typ, hexStr, decoded)
 	}
 	w.Flush()
+}
+
+func printUsage() {
+	fmt.Println(`mtool - Mac sensor monitor (M-series compatible)
+
+Usage:
+  mtool <command> [options]
+
+Commands:
+  fan     Show fan speeds
+  temp    Show temperature sensors
+  all     Show all sensor data
+  power   Show power/thermal data via powermetrics
+  diag    Show SMC key diagnostics
+  version Show version
+
+Options (for temp, fan, all):
+  -f, --format=<fmt>   Output format: table (default), json, plain, csv
+  -g, --group          Group by sensor type and show averages
+  -k, --key=<key>      Show only specific sensor key (e.g. Tp01)
+  -t, --type=<type>    Show only specific sensor type: cpu, gpu, soc, battery, ambient, other
+
+Examples:
+  mtool temp                                # Table format, all sensors
+  mtool temp -f json                        # JSON format
+  mtool temp -f plain                       # Plain text (values only)
+  mtool temp -g                             # Grouped averages (table)
+  mtool temp -t cpu                         # CPU sensors only, grouped
+  mtool temp -t cpu -f plain                # CPU average temperature, plain number
+  mtool temp --type=gpu                     # GPU sensors (using = format)
+  mtool temp -k Tp01                        # Single key
+  mtool fan -f json
+  mtool all -f csv
+  mtool all -t soc -f json                  # SoC sensors in JSON`)
+}
+
+func openSMC() *SMC {
+	smc := &SMC{}
+	if err := smc.Open(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: SMC unavailable: %v\n", err)
+		return nil
+	}
+	return smc
+}
+
+func outputSensors(sensors []TempSensor, format OutputFormat) {
+	var data []map[string]interface{}
+	for _, s := range sensors {
+		data = append(data, map[string]interface{}{
+			"name":    s.Name,
+			"key":     s.Key,
+			"celsius": s.Celsius,
+		})
+	}
+
+	switch format {
+	case FormatJSON:
+		b, _ := json.MarshalIndent(data, "", "  ")
+		fmt.Println(string(b))
+	case FormatPlain:
+		for _, d := range data {
+			fmt.Printf("%.1f\n", d["celsius"])
+		}
+	case FormatCSV:
+		fmt.Println("name,key,celsius")
+		for _, d := range data {
+			fmt.Printf("%s,%s,%.1f\n", d["name"], d["key"], d["celsius"])
+		}
+	default:
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "SENSOR\tKEY\tTEMPERATURE")
+		fmt.Fprintln(w, "------\t---\t-----------")
+		for _, s := range sensors {
+			bar := tempBar(s.Celsius)
+			fmt.Fprintf(w, "%s\t%s\t%.1f °C  %s\n", s.Name, s.Key, s.Celsius, bar)
+		}
+		w.Flush()
+	}
+}
+
+func outputGrouped(sensors []TempSensor, format OutputFormat, filterType string) {
+	groups := groupSensors(sensors)
+
+	// If a specific type is filtered, show only that group
+	if filterType != "" {
+		for _, g := range groups {
+			if g["group"].(string) == filterType {
+				groups = []map[string]interface{}{g}
+				break
+			}
+		}
+	}
+
+	switch format {
+	case FormatJSON:
+		b, _ := json.MarshalIndent(groups, "", "  ")
+		fmt.Println(string(b))
+	case FormatPlain:
+		for _, g := range groups {
+			fmt.Printf("%.1f\n", g["avg"])
+		}
+	case FormatCSV:
+		fmt.Println("group,avg,count")
+		for _, g := range groups {
+			fmt.Printf("%s,%.1f,%d\n", g["group"], g["avg"], g["count"])
+		}
+	default:
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "GROUP\tAVG (°C)\tCOUNT\tDETAILS")
+		fmt.Fprintln(w, "-----\t--------\t-----\t-------")
+		for _, g := range groups {
+			details := g["details"].(string)
+			fmt.Fprintf(w, "%s\t%.1f\t%d\t%s\n", g["group"], g["avg"], g["count"], details)
+		}
+		w.Flush()
+	}
+}
+
+// groupSensors groups sensors by type and calculates averages
+func groupSensors(sensors []TempSensor) []map[string]interface{} {
+	groups := make(map[string][]TempSensor)
+
+	for _, s := range sensors {
+		var category string
+		if strings.HasPrefix(s.Key, "Tp") {
+			category = "CPU"
+		} else if strings.HasPrefix(s.Key, "Tg") {
+			category = "GPU"
+		} else if strings.HasPrefix(s.Key, "Te") {
+			category = "SOC"
+		} else if strings.HasPrefix(s.Key, "TB") {
+			category = "BATTERY"
+		} else if strings.HasPrefix(s.Key, "Ta") {
+			category = "AMBIENT"
+		} else if strings.HasPrefix(s.Key, "T") {
+			category = "OTHER"
+		} else {
+			category = "UNKNOWN"
+		}
+		groups[category] = append(groups[category], s)
+	}
+
+	var result []map[string]interface{}
+	order := []string{"CPU", "GPU", "SOC", "BATTERY", "AMBIENT", "OTHER", "UNKNOWN"}
+
+	for _, cat := range order {
+		if sensorList, ok := groups[cat]; ok && len(sensorList) > 0 {
+			var sum float64
+			var details strings.Builder
+			for i, s := range sensorList {
+				sum += s.Celsius
+				if i > 0 {
+					details.WriteString(", ")
+				}
+				details.WriteString(fmt.Sprintf("%s %.1f°C", s.Key, s.Celsius))
+			}
+			avg := sum / float64(len(sensorList))
+			result = append(result, map[string]interface{}{
+				"group":   cat,
+				"avg":     avg,
+				"count":   len(sensorList),
+				"details": details.String(),
+			})
+		}
+	}
+	return result
 }
 
 func decodeRaw(typ string, b []byte) string {
