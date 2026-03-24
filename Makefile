@@ -1,4 +1,4 @@
-.PHONY: all build-arm64 build-amd64 package clean help info
+.PHONY: all deps build-arm64 build-amd64 package clean help info
 
 # 版本号
 VERSION := 0.7.0
@@ -52,13 +52,19 @@ all: build-arm64 build-amd64 package
 	@echo ""
 	@echo "✓ 完整编译和打包完成"
 
+# 下载 Go 模块依赖（保证 go.sum 与构建缓存完整）
+deps:
+	@echo "📥 正在下载 Go 模块依赖..."
+	$(GO) mod download
+	@echo "✓ 依赖准备完成"
+
 # 创建 dist 目录结构
 $(DIST_DIR):
 	@mkdir -p $(DIST_DIR)/darwin-arm64
 	@mkdir -p $(DIST_DIR)/darwin-amd64
 
 # 构建 ARM64（Apple Silicon）
-build-arm64: $(DIST_DIR)
+build-arm64: deps $(DIST_DIR)
 	@echo "📦 正在编译 ARM64（Apple Silicon M1-M4）..."
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 $(GO) build $(GOFLAGS) -o $(DIST_DIR)/darwin-arm64/$(BINARY_NAME) .
 	@chmod +x $(DIST_DIR)/darwin-arm64/$(BINARY_NAME)
@@ -66,7 +72,7 @@ build-arm64: $(DIST_DIR)
 	@ls -lh $(DIST_DIR)/darwin-arm64/$(BINARY_NAME)
 
 # 构建 x86_64（Intel）
-build-amd64: $(DIST_DIR)
+build-amd64: deps $(DIST_DIR)
 	@echo "📦 正在编译 x86_64（Intel Mac）..."
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 $(GO) build $(GOFLAGS) -o $(DIST_DIR)/darwin-amd64/$(BINARY_NAME) .
 	@chmod +x $(DIST_DIR)/darwin-amd64/$(BINARY_NAME)

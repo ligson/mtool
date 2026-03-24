@@ -27,7 +27,6 @@
 # Go 相关
 /bin/
 /vendor/
-go.sum
 *.prof
 
 # 系统文件
